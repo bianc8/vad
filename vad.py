@@ -23,7 +23,6 @@ import argparse
 import numpy as np
 from math import ceil
 from matplotlib import pyplot as plt
-import wave
 
 class VAD:
    # Class constructor
