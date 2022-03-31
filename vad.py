@@ -4,6 +4,11 @@
 # Created By  : Enrico Biancotto
 # Created Date: Wed March 1 2022
 # =============================================================================
+__author__   = "Enrico Biancotto"
+__version__  = "1.0"
+__course__   = "Reti di Calcolatori"
+__homework__ = "1"
+__date__     = "01/04/2022"
 """
 Python VAD implementation.
 
@@ -69,6 +74,7 @@ class VAD:
       self.INACTIVE_SAMPLES = self.MAX_INACTIVE_SAMPLES
  
    # compute Root Mean Square Energy of sample
+   # tested: OK
    def computeRMSE(self, startIndex):
       energySum = 0
       # compute sum of energy of packet
@@ -97,6 +103,7 @@ class VAD:
       self.RUMOR_ENERGY = self.RUMOR_ENERGY * (1.001 ** index)
 
    # replace Packet with 0s in self.inputDataByte
+   # tested: OK
    def replacePacket(self, startIndex):
       for index in range(startIndex, startIndex + self.PACKET_SIZE):
          if index < len(self.inputDataByte):
@@ -149,9 +156,8 @@ class VAD:
       print("5) Plot signal and Energy levels")
       plt.show()
 
-      sig = np.frombuffer(self.inputDataByte, dtype=np.int8)
       plt.figure(1)
-
+      sig = np.frombuffer(self.inputDataByte, dtype=np.int8)
       plot_a = plt.subplot(211)
       plot_a.plot(sig)
       plot_a.set_xlabel('sample rate * time')
@@ -171,7 +177,8 @@ class VAD:
    # Analizzare il contenuto audio corrispondente a intervalli di 20 ms di segnale in forma sequenziale
    def analyze(self):
       print("1) Analyze file "+str(self.inputFileName) + "\n")
-      # iterate first 2 packets to find background noise
+      
+      # iterate over the first 2 packets to find energy levels and threshold of the background noise
       print("2) Analyze first 40ms to recognize background noise\n")
       maxIndex = self.PACKET_SIZE * 2   # 160 * 2 = 320 samples = 40 ms in the time domain
       for index in range(0, maxIndex, self.PACKET_SIZE):
@@ -179,6 +186,7 @@ class VAD:
          self.signals_rmse.append(rmse)
          self.replacePacket(index)
 
+      # update values
       self.SPEECH_ENERGY = max(self.signals_rmse)
       if self.SPEECH_ENERGY == 0:
          self.SPEECH_ENERGY = 10e-7
@@ -187,6 +195,7 @@ class VAD:
 
       self.updateThreshold()
 
+      # save data for plot
       self.signals_speech_energy.append(self.SPEECH_ENERGY)
       self.signals_rumor_energy.append(self.RUMOR_ENERGY)
       self.signals_threshold.append(self.THRESHOLD)
@@ -205,16 +214,11 @@ class VAD:
 
 if __name__ == "__main__":
    # print informations
-   __author__ = "Enrico Biancotto"
-   __version__ = "1.0"
-   __course__ = "Reti di Calcolatori"
-   __homework__ = "1"
-   __date__ = "01/04/2022"
    print('=' * 40)
-   print('Author: ' + __author__)
+   print('Author: '  + __author__)
    print('Version: ' + __version__)
-   print('Course: ' + __course__)
-   print('Homework: ' + __homework__)
+   print('Course: '  + __course__)
+   print('Homework: '+ __homework__)
    print('Date: ' + __date__)
    print('=' * 40 + "\n")
 
