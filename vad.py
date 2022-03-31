@@ -36,23 +36,23 @@ class VAD:
       if not os.path.isfile(self.inputFileName):
          sys.exit("Error: "+ self.inputFileName + " file does not exists on the current directory!")
 
-      # read bytes from file
+      # read bytes from inputFile
       with open(self.inputFileName, "rb") as file:
          self.inputDataByte = bytearray(file.read())
 
-      # -------------- CONSTANTS ----------------
+      # -------------- VARIABLES  ----------------
 
-      # 1 PACKET = 20 ms of track = 160 SAMPLE * 8bit x SAMPLE
+      # 1 PACKET = 20 ms of track = 160 bytes = 160 sample
       self.PACKET_SIZE = 160
       self.NUM_PACKETS = int(ceil(len(self.inputDataByte) / self.PACKET_SIZE))
 
-      # Root Mean Square energy = sqrt(1/n * sum with i=[0, n] of x^2(i))
+      # Root Mean Square Energy = sqrt(1/n * sum with i=[0, n] of x^2(i))
       self.signals_rmse = []
       self.signals_speech_energy = []
       self.signals_rumor_energy = []
       self.signals_threshold = []
 
-      # Rumore info 
+      # Energy specs
       self.SPEECH_ENERGY = 0.0
       self.RUMOR_ENERGY = 0.0
       self.INIT_RUMOR_ENERGY = 0.0
@@ -64,7 +64,7 @@ class VAD:
       # threshold based on energy levels
       self.THRESHOLD = 0.0
 
-      # count 5 INACTIVE SAMPLES before clipping packet
+      # count 4 INACTIVE SAMPLES before clipping packet
       self.MAX_INACTIVE_SAMPLES = 4
       self.INACTIVE_SAMPLES = self.MAX_INACTIVE_SAMPLES
  
@@ -91,6 +91,10 @@ class VAD:
       if tmp < 0.950 or tmp > 0.999:
          tmp = self.INIT_LAMBDA
       self.LAMBDA = tmp
+
+   # increase rumor_energy every iteration
+   def increaseRumor(self, index):
+      self.RUMOR_ENERGY = self.RUMOR_ENERGY * (1.001 ** index)
 
    # replace Packet with 0s in self.inputDataByte
    def replacePacket(self, startIndex):
@@ -132,6 +136,8 @@ class VAD:
          else:
             self.replacePacket(startIndex)
             self.INACTIVE_SAMPLES = self.MAX_INACTIVE_SAMPLES
+      
+      self.increaseRumor(ceil(startIndex % self.PACKET_SIZE))
       
    # Create outputVADN.data file where supprex packets are replaced by sequences of zeros of the same length
    def writeOutput(self):
