@@ -41,7 +41,7 @@ class VAD:
       """
       self.fileIndex = index
       # Input file specs
-      self.inputFileName = "input/inputaudio" + str(index) + ".data"
+      self.inputFileName =  f'input/inputaudio{str(index)}.data'
       # Output file specs
       self.outputFileName = "output/outputVAD" + str(index) + ".data"
       
@@ -49,13 +49,21 @@ class VAD:
       if not os.path.isfile(self.inputFileName):
          sys.exit("Error: "+ self.inputFileName + " file does not exists on the current directory!")
 
+      # save original sound wave
+      with open(self.inputFileName, "rb") as file:
+         self.originalDataByte = bytearray(file.read())
+      
       # read bytes from inputFile
       with open(self.inputFileName, "rb") as file:
          self.inputDataByte = bytearray(file.read())
       
-      # save original sound wave
-      with open(self.inputFileName, "rb") as file:
-         self.originalDataByte = bytearray(file.read())
+      # Normalize input data
+      self.outputDataDec = [] # Working data
+      self.normalizedAudio = [] # Normalized list
+      for sample in self.inputDataByte:
+         self.outputDataDec.append(np.int8(sample))# read signed int8 from byte
+         ret = float(np.int8(sample) / 128)     # normalize
+         self.normalizedAudio.append(ret)
 
       # -------------- VARIABLES  ----------------
 
@@ -63,6 +71,7 @@ class VAD:
       self.PACKET_SIZE = 160
       self.NUM_PACKETS = int(ceil(len(self.inputDataByte) / self.PACKET_SIZE))
 
+      # Util plot lists
       # Root Mean Square Energy = sqrt(1/n * sum with i=[0, n] of x^2(i))
       self.signals_rmse = []
       self.signals_speech_energy = []
@@ -84,19 +93,19 @@ class VAD:
       # count 4 INACTIVE SAMPLES before clipping packet
       self.MAX_INACTIVE_SAMPLES = 4
       self.INACTIVE_SAMPLES = self.MAX_INACTIVE_SAMPLES
- 
+
    # compute Root Mean Square Energy of sample
-   # tested: OK
    def __computeRMSE(self, startIndex):
       energySum = 0
-      # compute sum of energy of packet
+      totalPacket = 0
       for sampleIndex in range(startIndex, startIndex + self.PACKET_SIZE):
-         if sampleIndex < len(self.inputDataByte):
-            energySum += np.int8(self.inputDataByte[sampleIndex]) ** 2
-      rmse = (energySum / self.PACKET_SIZE) ** 0.5
+         if sampleIndex < len(self.normalizedAudio): # check for samples of last packet
+            energySum += self.normalizedAudio[sampleIndex] ** 2
+            totalPacket += 1
+      rmse = (energySum / totalPacket) ** 0.5
       return rmse
 
-   # Threshold = ((1 - lambda) * Emax) + (lambda * Emin)
+   # Threshold = ((1 - lambda) * self.SPEECH_ENERGY) + (lambda * self.RUMOR_ENERGY)
    def __updateThreshold(self):
       tmp = ((1 - self.LAMBDA) * self.SPEECH_ENERGY) + (self.LAMBDA * self.RUMOR_ENERGY)
       if tmp < 0.05:
@@ -114,12 +123,11 @@ class VAD:
    def __increaseRumor(self, index):
       self.RUMOR_ENERGY = self.RUMOR_ENERGY * (1.001 ** index)
 
-   # replace Packet with 0s in self.inputDataByte
-   # tested: OK
+   # replace Packet with 0s in self.normalizedAudio
    def __replacePacket(self, startIndex):
       for index in range(startIndex, startIndex + self.PACKET_SIZE):
-         if index < len(self.inputDataByte):
-            self.inputDataByte[index] = np.int8(0)
+         if index < len(self.outputDataDec):
+            self.outputDataDec[index] = 0
    
    # compute Packet, startIndex = [0, 160, 320, ...]
    def __computePacket(self, startIndex):
@@ -129,7 +137,7 @@ class VAD:
       
       if rmse > self.SPEECH_ENERGY:
          self.SPEECH_ENERGY = rmse
-      elif rmse < self.RUMOR_ENERGY:
+      if rmse < self.RUMOR_ENERGY:
          if rmse == 0:
             self.RUMOR_ENERGY = self.INIT_RUMOR_ENERGY
          else:
@@ -141,7 +149,6 @@ class VAD:
       # save data for plot
       self.signals_speech_energy.append(self.SPEECH_ENERGY)
       self.signals_rumor_energy.append(self.RUMOR_ENERGY)
-      self.signals_threshold.append(self.THRESHOLD)
 
       # if rmse > threshold it is voice, reset inactive_samples count
       if rmse > self.THRESHOLD:
@@ -154,14 +161,14 @@ class VAD:
          # clip
          else:
             self.__replacePacket(startIndex)
-            self.INACTIVE_SAMPLES = self.MAX_INACTIVE_SAMPLES
       
       self.__increaseRumor(ceil(startIndex % self.PACKET_SIZE))
       
    # Create outputVADN.data file where supprex packets are replaced by sequences of zeros of the same length
    def __writeOutput(self):
       print("4) Write output to "+str(self.outputFileName) + "\n")
-      np.array(self.inputDataByte, dtype=np.int8).astype(np.int8).tofile(self.outputFileName)
+      self.outputData = np.array(self.outputDataDec, dtype=np.int8).astype(np.int8)
+      self.outputData.tofile(self.outputFileName)
 
    # plot soundwave and energy levels of input signal
    def __plot(self):
@@ -179,17 +186,17 @@ class VAD:
       plot_a.title.set_text('Input Sound Wave')
 
       # plot output sound wave
-      sig = np.frombuffer(self.inputDataByte, dtype=np.int8)
       plot_b = fig.add_subplot(gs[1,0]) # row 1 col 0
-      plot_b.set_ylabel('energy')
+      sig = np.frombuffer(self.outputData, dtype=np.int8)
       plot_b.plot(sig)
+      plot_b.set_ylabel('energy')
       plot_b.title.set_text('Output Sound Wave')
 
+      # plot Energy levels
       plot_c = fig.add_subplot(gs[2,0]) # row 2 col 0
       plot_c.plot(self.signals_rmse, color="b", label='RMS Energy')
       plot_c.plot(self.signals_speech_energy, color="g", label='Speech Energy')
       plot_c.plot(self.signals_rumor_energy, color="r", label='Rumor Energy')
-      plot_c.plot(self.signals_threshold, color="m", label='Threshold')
       plot_c.legend(loc="upper left")
       plot_c.set_ylabel('energy')
       plot_c.title.set_text('Energy Levels')
@@ -209,7 +216,7 @@ class VAD:
          index (:obj:`int`): `index` specify from which inputaudio<index>.data file to read from input.
       """
       print("1) Analyze file "+str(self.inputFileName) + "\n")
-      
+
       # iterate over the first 2 packets to find energy levels and threshold of the background noise
       print("2) Analyze first 40ms to recognize background noise\n")
       maxIndex = self.PACKET_SIZE * 2   # 160 * 2 = 320 samples = 40 ms in the time domain
@@ -221,7 +228,7 @@ class VAD:
       # update values
       self.SPEECH_ENERGY = max(self.signals_rmse)
       if self.SPEECH_ENERGY == 0:
-         self.SPEECH_ENERGY = 10e-7
+         self.SPEECH_ENERGY = 10e-6
       self.INIT_RUMOR_ENERGY = self.SPEECH_ENERGY / (1 + self.LAMBDA)
       self.RUMOR_ENERGY = self.INIT_RUMOR_ENERGY
 
@@ -230,7 +237,6 @@ class VAD:
       # save data for plot
       self.signals_speech_energy.append(self.SPEECH_ENERGY)
       self.signals_rumor_energy.append(self.RUMOR_ENERGY)
-      self.signals_threshold.append(self.THRESHOLD)
 
       # iterate over all frames that are complete
       print("3) Analyze the rest of the sequence\n")
