@@ -11,4 +11,6 @@ python3 vad.py --help
 
 Nella cartella input/* ci sono i file di ingresso al programma vad.py
 Nella cartella output/* ci sono i vari output del programma vad.py
+Nella cartella outputTxt/* ci sono i vari "outputVAD<N>.txt" testi contenenti una lista di flag, 
+  con 1 in corrispondenza di pacchetto inviato e 0 in corrispondenza di pacchetto non inviato
 Nella cartella images/* si può vedere un plot delle onde sonore di ingresso e di uscita, e un plot dei livelli di energia dei vari file di ingresso.
