@@ -28,10 +28,18 @@ import argparse
 import numpy as np
 from math import ceil
 from matplotlib import pyplot as plt
+from matplotlib import gridspec as gridspec
 
 class VAD:
    # Class constructor
    def __init__(self, index):
+      """
+      The __init__ method initiate the VAD class, setting defaults for variables and reading from inputFile.
+
+      Args:
+         index (:obj:`int`): `index` specify from which inputaudio<index>.data file to read from input.
+      """
+      self.fileIndex = index
       # Input file specs
       self.inputFileName = "input/inputaudio" + str(index) + ".data"
       # Output file specs
@@ -44,6 +52,10 @@ class VAD:
       # read bytes from inputFile
       with open(self.inputFileName, "rb") as file:
          self.inputDataByte = bytearray(file.read())
+      
+      # save original sound wave
+      with open(self.inputFileName, "rb") as file:
+         self.originalDataByte = bytearray(file.read())
 
       # -------------- VARIABLES  ----------------
 
@@ -75,7 +87,7 @@ class VAD:
  
    # compute Root Mean Square Energy of sample
    # tested: OK
-   def computeRMSE(self, startIndex):
+   def __computeRMSE(self, startIndex):
       energySum = 0
       # compute sum of energy of packet
       for sampleIndex in range(startIndex, startIndex + self.PACKET_SIZE):
@@ -85,34 +97,34 @@ class VAD:
       return rmse
 
    # Threshold = ((1 - lambda) * Emax) + (lambda * Emin)
-   def updateThreshold(self):
+   def __updateThreshold(self):
       tmp = ((1 - self.LAMBDA) * self.SPEECH_ENERGY) + (self.LAMBDA * self.RUMOR_ENERGY)
       if tmp < 0.05:
          tmp = 0.05
       self.THRESHOLD = tmp
 
    # update scaling factor lambda to make it resistant to variable background environment
-   def updateLambda(self):
+   def __updateLambda(self):
       tmp = (self.SPEECH_ENERGY - self.RUMOR_ENERGY) / self.SPEECH_ENERGY
       if tmp < 0.950 or tmp > 0.999:
          tmp = self.INIT_LAMBDA
       self.LAMBDA = tmp
 
    # increase rumor_energy every iteration
-   def increaseRumor(self, index):
+   def __increaseRumor(self, index):
       self.RUMOR_ENERGY = self.RUMOR_ENERGY * (1.001 ** index)
 
    # replace Packet with 0s in self.inputDataByte
    # tested: OK
-   def replacePacket(self, startIndex):
+   def __replacePacket(self, startIndex):
       for index in range(startIndex, startIndex + self.PACKET_SIZE):
          if index < len(self.inputDataByte):
             self.inputDataByte[index] = np.int8(0)
    
    # compute Packet, startIndex = [0, 160, 320, ...]
-   def computePacket(self, startIndex):
+   def __computePacket(self, startIndex):
       #print(self.RUMOR_ENERGY, self.SPEECH_ENERGY)
-      rmse = self.computeRMSE(startIndex)
+      rmse = self.__computeRMSE(startIndex)
       self.signals_rmse.append(rmse)
       
       if rmse > self.SPEECH_ENERGY:
@@ -123,8 +135,8 @@ class VAD:
          else:
             self.RUMOR_ENERGY = rmse
       
-      self.updateLambda()
-      self.updateThreshold()
+      self.__updateLambda()
+      self.__updateThreshold()
 
       # save data for plot
       self.signals_speech_energy.append(self.SPEECH_ENERGY)
@@ -141,50 +153,70 @@ class VAD:
             self.INACTIVE_SAMPLES -= 1
          # clip
          else:
-            self.replacePacket(startIndex)
+            self.__replacePacket(startIndex)
             self.INACTIVE_SAMPLES = self.MAX_INACTIVE_SAMPLES
       
-      self.increaseRumor(ceil(startIndex % self.PACKET_SIZE))
+      self.__increaseRumor(ceil(startIndex % self.PACKET_SIZE))
       
    # Create outputVADN.data file where supprex packets are replaced by sequences of zeros of the same length
-   def writeOutput(self):
+   def __writeOutput(self):
       print("4) Write output to "+str(self.outputFileName) + "\n")
       np.array(self.inputDataByte, dtype=np.int8).astype(np.int8).tofile(self.outputFileName)
 
    # plot soundwave and energy levels of input signal
-   def plot(self):
+   def __plot(self):
       print("5) Plot signal and Energy levels")
-      plt.show()
-
-      plt.figure(1)
-      sig = np.frombuffer(self.inputDataByte, dtype=np.int8)
-      plot_a = plt.subplot(211)
-      plot_a.plot(sig)
-      plot_a.set_xlabel('sample rate * time')
+      
+      gs = gridspec.GridSpec(3, 1)
+      fig = plt.figure()
+      fig.tight_layout()
+      
+      # plot input sound wave
+      sig = np.frombuffer(self.originalDataByte, dtype=np.int8)
+      plot_a = fig.add_subplot(gs[0,0]) # row 0 col 0
       plot_a.set_ylabel('energy')
+      plot_a.plot(sig)
+      plot_a.title.set_text('Input Sound Wave')
 
-      plot_b = plt.subplot(212)
-      plot_b.plot(self.signals_rmse, color="b", label='RMS Energy')
-      plot_b.plot(self.signals_speech_energy, color="g", label='Speech Energy')
-      plot_b.plot(self.signals_rumor_energy, color="r", label='Rumor Energy')
-      plot_b.plot(self.signals_threshold, color="m", label='Threshold')
-      plot_b.legend(loc="upper left")
-      plot_b.set_xlabel('time')
+      # plot output sound wave
+      sig = np.frombuffer(self.inputDataByte, dtype=np.int8)
+      plot_b = fig.add_subplot(gs[1,0]) # row 1 col 0
       plot_b.set_ylabel('energy')
+      plot_b.plot(sig)
+      plot_b.title.set_text('Output Sound Wave')
 
+      plot_c = fig.add_subplot(gs[2,0]) # row 2 col 0
+      plot_c.plot(self.signals_rmse, color="b", label='RMS Energy')
+      plot_c.plot(self.signals_speech_energy, color="g", label='Speech Energy')
+      plot_c.plot(self.signals_rumor_energy, color="r", label='Rumor Energy')
+      plot_c.plot(self.signals_threshold, color="m", label='Threshold')
+      plot_c.legend(loc="upper left")
+      plot_c.set_ylabel('energy')
+      plot_c.title.set_text('Energy Levels')
+      
+      # Save to image
+      plt.subplots_adjust(left=0.05, bottom=0.055, right=0.98, top=0.94, wspace=0.206, hspace=0.565)
+      name = "images/inputaudio_" + str(self.fileIndex) + ".png"
+      plt.savefig(name)
       plt.show()
 
    # Analizzare il contenuto audio corrispondente a intervalli di 20 ms di segnale in forma sequenziale
    def analyze(self):
+      """
+      The __init__ method initiate the VAD class, setting defaults for variables and reading from inputFile.
+
+      Args:
+         index (:obj:`int`): `index` specify from which inputaudio<index>.data file to read from input.
+      """
       print("1) Analyze file "+str(self.inputFileName) + "\n")
       
       # iterate over the first 2 packets to find energy levels and threshold of the background noise
       print("2) Analyze first 40ms to recognize background noise\n")
       maxIndex = self.PACKET_SIZE * 2   # 160 * 2 = 320 samples = 40 ms in the time domain
       for index in range(0, maxIndex, self.PACKET_SIZE):
-         rmse = self.computeRMSE(index)
+         rmse = self.__computeRMSE(index)
          self.signals_rmse.append(rmse)
-         self.replacePacket(index)
+         self.__replacePacket(index)
 
       # update values
       self.SPEECH_ENERGY = max(self.signals_rmse)
@@ -193,7 +225,7 @@ class VAD:
       self.INIT_RUMOR_ENERGY = self.SPEECH_ENERGY / (1 + self.LAMBDA)
       self.RUMOR_ENERGY = self.INIT_RUMOR_ENERGY
 
-      self.updateThreshold()
+      self.__updateThreshold()
 
       # save data for plot
       self.signals_speech_energy.append(self.SPEECH_ENERGY)
@@ -203,13 +235,13 @@ class VAD:
       # iterate over all frames that are complete
       print("3) Analyze the rest of the sequence\n")
       for index in range(maxIndex, len(self.inputDataByte), self.PACKET_SIZE):
-         self.computePacket(index)
+         self.__computePacket(index)
       
       # write bytes to .data file
-      self.writeOutput()
+      self.__writeOutput()
 
       # plot rmse
-      self.plot()
+      self.__plot()
 
 
 if __name__ == "__main__":
@@ -225,9 +257,9 @@ if __name__ == "__main__":
    # Read args passed from Command Line
    parser = argparse.ArgumentParser(description='Voice Activity Detection from inputaudio<N>.data file.')
    parser.add_argument('integer', type=int, metavar='<N>', help='Specify integer <N> to read from inputaudio<N>.data file ')
-   i = parser.parse_args().integer
+   fileIndex = parser.parse_args().integer
    
    # init VAD
-   v = VAD(i)
+   v = VAD(fileIndex)
    # start analysis of raw data
    v.analyze()
