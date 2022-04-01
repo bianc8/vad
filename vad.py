@@ -238,7 +238,7 @@ class VAD:
       self.signals_speech_energy.append(self.SPEECH_ENERGY)
       self.signals_rumor_energy.append(self.RUMOR_ENERGY)
 
-      # iterate over all frames that are complete
+      # iterate over all the remaining packets
       print("3) Analyze the rest of the sequence\n")
       for index in range(maxIndex, len(self.inputDataByte), self.PACKET_SIZE):
          self.__computePacket(index)
