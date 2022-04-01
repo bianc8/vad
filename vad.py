@@ -78,6 +78,9 @@ class VAD:
       self.signals_rumor_energy = []
       self.signals_threshold = []
 
+      # Output txt file with flag
+      self.output_flag = []
+
       # Energy specs
       self.SPEECH_ENERGY = 0.0
       self.RUMOR_ENERGY = 0.0
@@ -153,14 +156,17 @@ class VAD:
       # if rmse > threshold it is voice, reset inactive_samples count
       if rmse > self.THRESHOLD:
          self.INACTIVE_SAMPLES = self.MAX_INACTIVE_SAMPLES
+         self.output_flag.append(1)
       # it is not voice, check for clipping
       else:
          # do not clip
          if self.INACTIVE_SAMPLES > 0:
             self.INACTIVE_SAMPLES -= 1
+            self.output_flag.append(1)
          # clip
          else:
             self.__replacePacket(startIndex)
+            self.output_flag.append(0)
       
       self.__increaseRumor(ceil(startIndex % self.PACKET_SIZE))
       
@@ -170,9 +176,14 @@ class VAD:
       self.outputData = np.array(self.outputDataDec, dtype=np.int8).astype(np.int8)
       self.outputData.tofile(self.outputFileName)
 
+      name = "outputTxt/outputVAD" + str(self.fileIndex) + ".txt"
+      print("5) Write output to "+name+"\n")
+      with open(name, "w") as f:
+         f.write(str(self.output_flag))
+
    # plot soundwave and energy levels of input signal
    def __plot(self):
-      print("5) Plot signal and Energy levels")
+      print("6) Plot signal and Energy levels")
       
       gs = gridspec.GridSpec(3, 1)
       fig = plt.figure()
@@ -224,6 +235,7 @@ class VAD:
          rmse = self.__computeRMSE(index)
          self.signals_rmse.append(rmse)
          self.__replacePacket(index)
+         self.output_flag.append(0)
 
       # update values
       self.SPEECH_ENERGY = max(self.signals_rmse)
