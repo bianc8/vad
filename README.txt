@@ -1,16 +1,26 @@
-Il programma accetta un parametro posizionale obbligatorio, passato come argomento al programma dalla linea di comando:
-positional arguments:
-  N           Specify integer <N> to read from inputaudio<N>.data file
+# Example
 
-python3 vad.py 2    analizza il file inputaudio2.data
+![example of input audio](https://github.com/enricBiancott0/vad/raw/main/images/inputaudio_2.png)
 
+# How it works
 
-Si può vedere un menu di help eseguendo il programma con argomento -h oppure --help:
-Per esempio:
-python3 vad.py --help
+The goal of the program is to remove the background noise in a conversation, but just when there is no one speaking.
 
-Nella cartella input/* ci sono i file di ingresso al programma vad.py
-Nella cartella output/* ci sono i vari output del programma vad.py
-Nella cartella outputTxt/* ci sono i vari "outputVAD<N>.txt" testi contenenti una lista di flag, 
-  con 1 in corrispondenza di pacchetto inviato e 0 in corrispondenza di pacchetto non inviato
-Nella cartella images/* si può vedere un plot delle onde sonore di ingresso e di uscita, e un plot dei livelli di energia dei vari file di ingresso.
+As we can see from the Example, the program, simulating a real time computation without cycling through the input multiple times, 
+calculates the Energy of the noise and speaking signals and removes the blocks which does not have high energy
+
+# How to execute
+
+The program must have an index as argument, from 1 to 5, in order to select the input audio file from ./input/ folder
+  python3 vad.py 2    to analyze inputaudio2.data file
+
+You can see an Help menu via:
+  python3 vad.py --help
+
+## Other 
+
+Output folder contains the output.data which can be opened with [VLC Media Player](https://www.videolan.org/vlc/)
+
+Input folder contains given audio input .data files
+
+Images folder contains a plot of the input and output audio waves, and corresponding energy levels.
